@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>服薬管理カレンダー</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .controls {
+            padding: 20px;
+            background: #f8f9fa;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+        }
+        button {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(33, 150, 243, 0.4);
+        }
+        .add-btn {
+            background: linear-gradient(45deg, #FF6B6B, #FF5252) !important;
+        }
+        .family-btn {
+            background: linear-gradient(45deg, #FFC107, #FF9800) !important;
+        }
+        input, select {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #2196F3;
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+        .notification.show {
+            transform: translateX(0);
+        }
+        .family-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            max-width: 400px;
+            width: 90%;
+            display: none;
+            z-index: 1001;
+        }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            z-index: 1000;
+        }
+        .legend {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            padding: 15px;
+            background: #f0f0f0;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+        }
+        #canvas-container {
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💊 服薬管理カレンダー</h1>
+            <p>家族みんなで健康管理</p>
+        </div>
+        
+        <div class="controls">
+            <input type="text" id="medicationName" placeholder="薬の名前" />
+            <select id="memberSelect">
+                <option value="自分">自分</option>
+                <option value="父">父</option>
+                <option value="母">母</option>
+                <option value="子供1">子供1</option>
+                <option value="子供2">子供2</option>
+            </select>
+            <input type="time" id="medicationTime" />
+            <button class="add-btn" onclick="addMedication()">薬を追加</button>
+            <button onclick="previousMonth()">前月</button>
+            <button onclick="nextMonth()">翌月</button>
+            <button class="family-btn" onclick="showFamilyPanel()">家族通知</button>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #4CAF50;"></div>
+                <span>服薬済み</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #FF6B6B;"></div>
+                <span>服薬予定</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #FFC107;"></div>
+                <span>服薬忘れ</span>
+            </div>
+        </div>
+
+        <div id="canvas-container"></div>
+    </div>
+
+    <div class="overlay" id="overlay" onclick="hideFamilyPanel()"></div>
+    <div class="family-panel" id="familyPanel">
+        <h3>家族への通知</h3>
+        <p>家族メンバーに服薬状況を共有できます</p>
+        <input type="text" id="familyMessage" placeholder="メッセージを入力" style="width: 100%; margin: 10px 0;" />
+        <div style="text-align: center; margin-top: 20px;">
+            <button onclick="sendFamilyNotification()">通知を送信</button>
+            <button onclick="hideFamilyPanel()" style="background: #999; margin-left: 10px;">キャンセル</button>
+        </div>
+    </div>
+
+    <div class="notification" id="notification"></div>
+
+    <script>
+        let currentDate = new Date();
+        let medications = {};
+        let canvas;
+        
+        // データ管理
+        function loadData() {
+            const saved = localStorage.getItem('medicationData');
+            if (saved) {
+                medications = JSON.parse(saved);
+            }
+        }
+        
+        function saveData() {
+            localStorage.setItem('medicationData', JSON.stringify(medications));
+        }
+        
+        function setup() {
+            canvas = createCanvas(800, 600);
+            canvas.parent('canvas-container');
+            loadData();
+            
+            // 毎分チェックして通知
+            setInterval(checkMedicationTime, 60000);
+        }
+        
+        function draw() {
+            background(255);
+            drawCalendar();
+        }
+        
+        function drawCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const firstDay = new Date(year, month, 1).getDay();
+            
+            // ヘッダー
+            fill(51);
+            textAlign(CENTER, CENTER);
+            textSize(24);
+            text(`${year}年 ${month + 1}月`, width/2, 30);
+            
+            // 曜日ヘッダー
+            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+            textSize(16);
+            for (let i = 0; i < 7; i++) {
+                const x = 60 + i * 100;
+                const y = 80;
+                fill(100);
+                text(dayNames[i], x, y);
+            }
+            
+            // カレンダーグリッド
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayOfWeek = (firstDay + day - 1) % 7;
+                const row = Math.floor((firstDay + day - 1) / 7);
+                const x = 60 + dayOfWeek * 100;
+                const y = 120 + row * 80;
+                
+                // 日付の背景
+                const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayMeds = medications[dateKey];
+                
+                if (dayMeds && dayMeds.length > 0) {
+                    // 服薬状況に応じて色分け
+                    const allTaken = dayMeds.every(med => med.taken);
+                    const anyMissed = dayMeds.some(med => !med.taken && isPastTime(dateKey, med.time));
+                    
+                    if (allTaken) {
+                        fill(76, 175, 80, 100); // 緑 - 完了
+                    } else if (anyMissed) {
+                        fill(255, 193, 7, 100); // 黄 - 忘れ
+                    } else {
+                        fill(255, 107, 107, 100); // 赤 - 予定
+                    }
+                } else {
+                    fill(245);
+                }
+                
+                rect(x - 35, y - 25, 70, 50, 8);
+                
+                // 日付
+                fill(51);
+                textSize(18);
+                textAlign(CENTER, CENTER);
+                text(day, x, y - 10);
+                
+                // 薬の数表示
+                if (dayMeds && dayMeds.length > 0) {
+                    textSize(12);
+                    fill(102);
+                    text(`${dayMeds.length}件`, x, y + 10);
+                }
+            }
+        }
+        
+        function mousePressed() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayOfWeek = (firstDay + day - 1) % 7;
+                const row = Math.floor((firstDay + day - 1) / 7);
+                const x = 60 + dayOfWeek * 100;
+                const y = 120 + row * 80;
+                
+                if (mouseX > x - 35 && mouseX < x + 35 && mouseY > y - 25 && mouseY < y + 25) {
+                    const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    showDayDetails(dateKey);
+                    break;
+                }
+            }
+        }
+        
+        function showDayDetails(dateKey) {
+            const dayMeds = medications[dateKey] || [];
+            if (dayMeds.length === 0) {
+                showNotification('この日に予定された薬はありません');
+                return;
+            }
+            
+            let message = `${dateKey}の服薬予定:\n`;
+            dayMeds.forEach((med, index) => {
+                const status = med.taken ? '✓' : '○';
+                message += `${status} ${med.name} (${med.member}) ${med.time}\n`;
+            });
+            
+            if (confirm(message + '\n服薬完了にマークしますか？')) {
+                dayMeds.forEach(med => {
+                    if (!med.taken) {
+                        med.taken = true;
+                    }
+                });
+                saveData();
+                showNotification('服薬完了にマークしました！');
+            }
+        }
+        
+        function addMedication() {
+            const name = document.getElementById('medicationName').value;
+            const member = document.getElementById('memberSelect').value;
+            const time = document.getElementById('medicationTime').value;
+            
+            if (!name || !time) {
+                showNotification('薬の名前と時間を入力してください', 'error');
+                return;
+            }
+            
+            const today = new Date();
+            const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            
+            if (!medications[dateKey]) {
+                medications[dateKey] = [];
+            }
+            
+            medications[dateKey].push({
+                name: name,
+                member: member,
+                time: time,
+                taken: false,
+                addedAt: new Date().toISOString()
+            });
+            
+            saveData();
+            showNotification(`${member}の${name}を追加しました`);
+            
+            // フォームリセット
+            document.getElementById('medicationName').value = '';
+            document.getElementById('medicationTime').value = '';
+        }
+        
+        function previousMonth() {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+        }
+        
+        function nextMonth() {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+        }
+        
+        function showFamilyPanel() {
+            document.getElementById('overlay').style.display = 'block';
+            document.getElementById('familyPanel').style.display = 'block';
+        }
+        
+        function hideFamilyPanel() {
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('familyPanel').style.display = 'none';
+        }
+        
+        function sendFamilyNotification() {
+            const message = document.getElementById('familyMessage').value;
+            if (!message) {
+                showNotification('メッセージを入力してください', 'error');
+                return;
+            }
+            
+            // 実際の実装では、ここでメール送信やプッシュ通知を行います
+            showNotification('家族に通知を送信しました！');
+            
+            // 通知ログを保存
+            const notificationLog = {
+                message: message,
+                timestamp: new Date().toISOString(),
+                type: 'family_notification'
+            };
+            
+            let logs = JSON.parse(localStorage.getItem('notificationLogs') || '[]');
+            logs.push(notificationLog);
+            localStorage.setItem('notificationLogs', JSON.stringify(logs));
+            
+            document.getElementById('familyMessage').value = '';
+            hideFamilyPanel();
+        }
+        
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        function checkMedicationTime() {
+            const now = new Date();
+            const dateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            
+            const dayMeds = medications[dateKey] || [];
+            dayMeds.forEach(med => {
+                if (med.time === currentTime && !med.taken) {
+                    showNotification(`🔔 ${med.member}さん、${med.name}の時間です！`);
+                    
+                    // ブラウザ通知も表示
+                    if (Notification.permission === 'granted') {
+                        new Notification('服薬リマインダー', {
+                            body: `${med.member}さん、${med.name}の時間です！`,
+                            icon: '💊'
+                        });
+                    }
+                }
+            });
+        }
+        
+        function isPastTime(dateKey, timeString) {
+            const now = new Date();
+            const [year, month, day] = dateKey.split('-').map(Number);
+            const [hours, minutes] = timeString.split(':').map(Number);
+            
+            const medicationTime = new Date(year, month - 1, day, hours, minutes);
+            return now > medicationTime;
+        }
+        
+        // 通知許可を求める
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+        
+        // PWA対応のための基本的なサービスワーカー登録
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(() => {
+                // サービスワーカーが見つからない場合は無視
+            });
+        }
+    </script>
+</body>
+</html>
